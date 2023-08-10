@@ -22,11 +22,6 @@
       "matchManagers": ["npm"],
       "excludePackagePatterns": ["^@magazino"],
       "schedule": ["after 10pm and before 5:00am"]
-    },
-    {
-      "packagePatterns": ["(^|/|^.*)helmfile(-layer-\\d+)?\\.ya?ml$"],
-      "updateTypes": ["minor", "patch"],
-      "groupName": "helmfiles"
     }
   ],
   "helm-values": {
