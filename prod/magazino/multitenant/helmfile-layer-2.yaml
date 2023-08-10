@@ -51,7 +51,7 @@ releases:
     <<: *default
     namespace: monitoring
     chart: prometheus-community/prometheus-node-exporter
-    version: 4.20.0
+    version: 4.22.0
     installed: true
     wait: true
     values:
