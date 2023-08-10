@@ -28,10 +28,6 @@
       "fileMatch": ["(^|/|^.*)values\\.yaml$"]
   },
   "helmfile": {
-    "registryAliases": {
-      "stable": "https://charts.helm.sh/stable",
-    },
-    "commitMessageTopic": "helm chart {{depName}}",
     "fileMatch": ["(^|/|^.*)helmfile(-layer-\\d+)?\\.ya?ml$"]
   }
 }
