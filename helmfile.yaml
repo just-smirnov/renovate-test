@@ -62,7 +62,7 @@ releases:
     <<: *default
     namespace: cert-manager
     chart: jetstack/cert-manager
-    version: 1.11.3
+    version: v1.12.3
     installed: true
     wait: true
     values:
