@@ -1,0 +1,150 @@
+environments:
+  default:
+    kubeContext: {{ requiredEnv "KUBE_CONTEXT" | quote }}
+    values:
+    - vaultToken: {{ requiredEnv "VAULT_TOKEN" | quote }}
+    - vaultAddr: {{ requiredEnv "VAULT_ADDR" | quote }}
+    - cluster: {{ requiredEnv "CLUSTER" | quote }}
+---
+
+
+repositories:
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
+  - name: jetstack
+    url: https://charts.jetstack.io
+  - name: bedag
+    url: https://bedag.github.io/helm-charts
+  - name: ingress-nginx
+    url: https://kubernetes.github.io/ingress-nginx
+
+templates:
+  default: &default
+    missingFileHandler: Warn
+    labels:
+      app: "{{`{{ .Release.Name }}`}}"
+
+releases:
+  - name: grafana-cloud-agent
+    <<: *default
+    chart: ./charts/grafana-cloud-agent
+    namespace: monitoring
+    installed: true
+    wait: true
+    timeout: 120
+    values:
+      - ./clusters/{{ .Values.cluster }}/values.yaml.gotmpl
+      - ./releases/{{`{{.Release.Name}}`}}-values.yaml
+
+  - name: kube-state-metrics
+    <<: *default
+    namespace: monitoring
+    chart: prometheus-community/kube-state-metrics
+    version: 5.10.0
+    installed: true
+    wait: true
+    values:
+      - ./clusters/{{ .Values.cluster }}/values.yaml.gotmpl
+      - ./releases/{{`{{.Release.Name}}`}}-values.yaml
+
+  - name: prometheus-node-exporter
+    <<: *default
+    namespace: monitoring
+    chart: prometheus-community/prometheus-node-exporter
+    version: 4.20.0
+    installed: true
+    wait: true
+    values:
+      - ./clusters/{{ .Values.cluster }}/values.yaml.gotmpl
+      - ./releases/{{`{{.Release.Name}}`}}-values.yaml
+
+  - name: cert-manager
+    <<: *default
+    namespace: cert-manager
+    chart: jetstack/cert-manager
+    version: 1.11.3
+    installed: true
+    wait: true
+    values:
+      - ./clusters/{{ .Values.cluster }}/values.yaml.gotmpl
+      - ./releases/{{`{{.Release.Name}}`}}-values.yaml
+      - installCRDs: true
+    # Override the namespace used to store the ConfigMap for leader election from kube-system to cert-manager
+    set:
+      - name: global.leaderElection.namespace
+        value: cert-manager
+
+  - name: cert-manager-secrets
+    <<: *default
+    chart: ./charts/cert-manager-secrets
+    namespace: cert-manager
+    installed: true
+    wait: true
+    timeout: 120
+    needs:
+      - 'cert-manager/cert-manager'
+    values:
+      - ./clusters/{{ .Values.cluster }}/values.yaml.gotmpl
+      - ./releases/{{`{{.Release.Name}}`}}-values.yaml
+
+  - name: cert-manager-issuer
+    <<: *default
+    namespace: cert-manager
+    chart: bedag/raw
+    version: 2.0.0
+    installed: true
+    disableValidation: true
+    needs:
+      - 'cert-manager/cert-manager'
+      - 'cert-manager/cert-manager-secrets'
+    values:
+      - ./clusters/{{ .Values.cluster }}/values.yaml.gotmpl
+      - ./releases/{{`{{.Release.Name}}`}}-values.yaml
+      - resources:
+          - apiVersion: cert-manager.io/v1
+            kind: ClusterIssuer
+            metadata:
+              name: google-issuer # it was a prod-issuer
+            spec:
+              acme:
+                server: "https://dv.acme-v02.api.pki.goog/directory"
+                email: "it-department-3@it.local"
+                externalAccountBinding:
+                  keySecretRef:
+                    name: eab-secret
+                    key: secret
+                privateKeySecretRef:
+                  name: issuer-account-key
+                solvers:
+                  - http01:
+                      ingress:
+                        class: nginx
+
+  - name: ingress-controller
+    <<: *default
+    namespace: ingress-controller
+    chart: ingress-nginx/ingress-nginx
+    version: 4.7.0
+    installed: true
+    wait: true
+    values:
+      - ./clusters/{{ .Values.cluster }}/values.yaml.gotmpl
+      - ./releases/{{`{{.Release.Name}}`}}-values.yaml
+
+  - name: volume-snapshot-class
+    <<: *default
+    namespace: kube-system # infrastructure
+    chart: bedag/raw
+    version: 2.0.0
+    installed: true
+    disableValidation: true
+    values:
+      - ./clusters/{{ .Values.cluster }}/values.yaml.gotmpl
+      - ./releases/{{`{{.Release.Name}}`}}-values.yaml
+      - resources:
+          - apiVersion: snapshot.storage.k8s.io/v1
+            kind: VolumeSnapshotClass
+            metadata:
+              name: backup-snapshotclass
+            driver: pd.csi.storage.gke.io
+            deletionPolicy: Delete
